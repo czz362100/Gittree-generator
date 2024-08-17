@@ -1,20 +1,22 @@
 const axios = require('axios');
 const treeify = require('treeify');
+const fs = require('fs');
 
 // 异步递归函数，用于获取仓库中的所有目录和文件
 async function fetchRepoContents(user, repo, path = '', tree = {}) {
     const url = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
     try {
-        const response = await axios.get(url);
+        const response = await axios.get(url, {
+            header: {
+                'Authorization': `token YOUR_OAUTH_TOKEN`
+            }
+        });
         const data = response.data;
 
-        // 遍历当前目录下的所有项
         for (let item of data) {
             if (item.type === 'file') {
-                // 如果是文件，直接添加到树中
                 tree[item.path] = 'file';
             } else if (item.type === 'dir') {
-                // 如果是目录，递归调用以获取子目录内容
                 tree[item.path] = {};
                 await fetchRepoContents(user, repo, item.path, tree[item.path]);
             }
@@ -25,18 +27,25 @@ async function fetchRepoContents(user, repo, path = '', tree = {}) {
     return tree;
 }
 
-// 主函数，用于启动目录获取过程并打印结果
-async function generateTree(user, repo) {
+// 将目录树转换为 Markdown 格式
+function treeToMarkdown(tree, indent = 0) {
+    let markdown = '';
+    for (let key in tree) {
+        markdown += `${'  '.repeat(indent)}- ${key}\n`;
+        if (tree[key] !== 'file') {
+            markdown += treeToMarkdown(tree[key], indent + 1);
+        }
+    }
+    return markdown;
+}
+
+// 主函数，用于启动目录获取过程并保存为 Markdown 文件
+async function generateMarkdownTree(user, repo) {
     const tree = await fetchRepoContents(user, repo);
-    console.log(treeify.asTree(tree, true));
-    return tree
+    const markdown = treeToMarkdown(tree);
+    fs.writeFileSync('directoryTree.md', markdown);
+    console.log('Markdown tree has been saved to directoryTree.md');
 }
 
-async function gennerateMdbyTree(tree) {
-    const markdown = treeify.asMarkdown(tree);
-    console.log(markdown);
-    return markdown
-}
-
-// 示例使用：获取 'octocat/Hello-World' 仓库的树状结构
-gennerateMdbyTree(generateTree('vitejs', 'vite'))
+// 示例使用：获取 'octocat/Hello-World' 仓库的目录结构并保存为 Markdown 文件
+generateMarkdownTree('octocat', 'Hello-World');
